@@ -1,0 +1,10 @@
+build/
+managed_components/
+sdkconfig
+sdkconfig.old
+dependencies.lock
+mdee_body/build/
+mdee_body/managed_components/
+mdee_body/sdkconfig
+mdee_body/sdkconfig.old
+mdee_body/dependencies.lock

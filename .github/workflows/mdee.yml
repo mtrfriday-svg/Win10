@@ -1,0 +1,81 @@
+name: Build M'DEE robot
+
+# Builds ONLY your two firmwares (this repo contains no other boards):
+#   brain = ESP32-S3 N16R8 (XiaoZhi firmware, board "mdee-robot")
+#   body  = ESP32-S3 Super Mini (folder mdee_body)
+# Runs on every push to main/master, or manually: GitHub app -> Actions -> "Build M'DEE robot" -> Run workflow.
+# Download from the finished run -> "Artifacts" (works in the phone browser).
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# a newer push cancels an older unfinished build, so you never wait for outdated builds
+concurrency:
+  group: mdee-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  brain:
+    name: Brain (ESP32-S3 N16R8)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: espressif/idf:v6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache downloaded ESP components
+        uses: actions/cache@v4
+        with:
+          path: |
+            /root/.cache/Espressif/ComponentManager
+            managed_components
+          key: brain-components-${{ hashFiles('main/idf_component.yml') }}
+          restore-keys: brain-components-
+      - name: Build mdee-robot
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/build.py mdee-robot --name mdee-robot --language en-US --wake-word wn9_hijason_tts2
+      - name: Upload brain firmware (flash at address 0x0)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdee_brain_n16r8_${{ github.sha }}
+          path: build/merged-binary.bin
+          if-no-files-found: error
+          retention-days: 30
+
+  body:
+    name: Body (ESP32-S3 Super Mini)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: espressif/idf:v6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache downloaded ESP components
+        uses: actions/cache@v4
+        with:
+          path: |
+            /root/.cache/Espressif/ComponentManager
+            mdee_body/managed_components
+          key: body-components-${{ hashFiles('mdee_body/main/idf_component.yml') }}
+          restore-keys: body-components-
+      - name: Build mdee_body
+        shell: bash
+        working-directory: mdee_body
+        run: |
+          source $IDF_PATH/export.sh
+          idf.py set-target esp32s3
+          idf.py build
+          idf.py merge-bin -o build/merged-binary.bin
+      - name: Upload body firmware (flash at address 0x0)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdee_body_supermini_${{ github.sha }}
+          path: mdee_body/build/merged-binary.bin
+          if-no-files-found: error
+          retention-days: 30
